@@ -513,6 +513,10 @@ export default function Home() {
               onChange={(event) => setUsername(event.target.value)}
               onKeyDown={onAuthInputKeyDown}
               enterKeyHint="go"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="username"
             />
             <label className="mb-2 block text-sm">Password</label>
             <input
@@ -522,6 +526,10 @@ export default function Home() {
               onChange={(event) => setPassword(event.target.value)}
               onKeyDown={onAuthInputKeyDown}
               enterKeyHint="go"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete={authMode === "login" ? "current-password" : "new-password"}
             />
             {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
             <button
@@ -539,6 +547,9 @@ export default function Home() {
               placeholder="Username"
               value={resetUsername}
               onChange={(event) => setResetUsername(event.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
             <input
               className="w-full rounded-xl border border-white/30 bg-black/20 px-3 py-2 text-sm"
@@ -546,6 +557,10 @@ export default function Home() {
               placeholder="New password"
               value={resetPassword}
               onChange={(event) => setResetPassword(event.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="new-password"
             />
             <button
               className="mt-2 w-full rounded-xl border border-white/25 px-4 py-2 text-sm"
