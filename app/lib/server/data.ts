@@ -339,37 +339,3 @@ export async function saveUserState(
   }
 }
 
-export async function shareListWithUsername(ownerId: string, listId: string, targetUsername: string): Promise<void> {
-  const supabaseAdmin = getSupabaseAdmin() as any;
-  const { data: list, error: listError } = await supabaseAdmin
-    .from("shopping_lists")
-    .select("id, owner_id")
-    .eq("id", listId)
-    .maybeSingle();
-  if (listError || !list) {
-    throw new Error("List not found.");
-  }
-  if (list.owner_id !== ownerId) {
-    throw new Error("Only owner can share this list.");
-  }
-
-  const targetUser = await getUserByUsername(targetUsername);
-  if (!targetUser) {
-    throw new Error("User not found.");
-  }
-  if (targetUser.id === ownerId) {
-    throw new Error("You already own this list.");
-  }
-
-  const { error } = await supabaseAdmin.from("shopping_list_shares").upsert(
-    {
-      list_id: listId,
-      user_id: targetUser.id,
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: "list_id,user_id" }
-  );
-  if (error) {
-    throw new Error(error.message);
-  }
-}

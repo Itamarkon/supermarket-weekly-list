@@ -8,7 +8,6 @@ import {
   getSearchSuggestions,
   hasDuplicateItem,
   normalizeItemName,
-  parseEuropeanDate,
   type ItemHistoryEntry,
   type ShoppingItem,
   type ShoppingItemStatus,
@@ -50,8 +49,7 @@ export default function Home() {
   const [itemNotes, setItemNotes] = useState("");
   const [itemCategory, setItemCategory] = useState<string>(CATEGORIES[0]);
   const [duplicateMessage, setDuplicateMessage] = useState("");
-  const [shareUsername, setShareUsername] = useState("");
-  const [shareMessage, setShareMessage] = useState("");
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
 
   async function loadRemoteState() {
     const response = await fetch("/api/state");
@@ -129,6 +127,18 @@ export default function Home() {
     return () => clearTimeout(timeout);
   }, [lists, activeListId, history, isLoggedIn, hasLoadedState]);
 
+  useEffect(() => {
+    if (!duplicateMessage) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setDuplicateMessage("");
+    }, 10000);
+
+    return () => clearTimeout(timeout);
+  }, [duplicateMessage]);
+
   const activeList = useMemo(
     () => lists.find((list) => list.id === activeListId) || lists[0],
     [lists, activeListId]
@@ -172,27 +182,6 @@ export default function Home() {
     setActiveListId("");
     setHistory({});
     setHasLoadedState(false);
-  }
-
-  async function shareCurrentList() {
-    if (!activeList || !shareUsername.trim()) {
-      return;
-    }
-
-    const response = await fetch(`/api/lists/${activeList.id}/share`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: shareUsername.trim() }),
-    });
-
-    const payload = (await response.json()) as { error?: string };
-    if (!response.ok) {
-      setShareMessage(payload.error || "Failed to share list.");
-      return;
-    }
-
-    setShareMessage(`List shared with ${shareUsername.trim()}.`);
-    setShareUsername("");
   }
 
   function addItem(nameFromButton?: string) {
@@ -298,10 +287,6 @@ export default function Home() {
 
   function deleteCurrentList() {
     if (!activeList) {
-      return;
-    }
-    if (activeList.isOwner === false) {
-      setShareMessage("Only list owner can delete this shared list.");
       return;
     }
 
@@ -413,11 +398,22 @@ export default function Home() {
             onChange={(event) => setPassword(event.target.value)}
           />
           {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
+          {forgotPasswordMessage ? <p className="mt-2 text-sm text-amber-300">{forgotPasswordMessage}</p> : null}
           <button
             className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black"
             onClick={handleAuth}
           >
             {authMode === "login" ? "Login" : "Create account"}
+          </button>
+          <button
+            className="mt-2 w-full rounded-xl border border-white/25 px-4 py-3 text-sm"
+            onClick={() =>
+              setForgotPasswordMessage(
+                "Forgot password: use the same family account credentials or create a new account."
+              )
+            }
+          >
+            Forgot password?
           </button>
         </section>
       </main>
@@ -465,21 +461,10 @@ export default function Home() {
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm">Planned Date:</label>
           <input
-            type="text"
-            inputMode="numeric"
-            placeholder="DD/MM/YYYY"
+            type="date"
             className="rounded-xl border border-white/30 bg-black/20 px-3 py-2"
-            defaultValue={activeList?.plannedDate ? formatEuropeanDate(activeList.plannedDate) : ""}
-            key={`${activeList?.id}-${activeList?.plannedDate}`}
-            onBlur={(event) => {
-              const parsed = parseEuropeanDate(event.target.value);
-              if (parsed) {
-                updateListDate(parsed);
-                event.currentTarget.value = formatEuropeanDate(parsed);
-              } else if (activeList?.plannedDate) {
-                event.currentTarget.value = formatEuropeanDate(activeList.plannedDate);
-              }
-            }}
+            value={activeList?.plannedDate || ""}
+            onChange={(event) => updateListDate(event.target.value)}
           />
           <button
             className="rounded-xl bg-orange-500 px-3 py-2 text-black shadow-md shadow-orange-900/30"
@@ -493,18 +478,6 @@ export default function Home() {
           >
             Delete Current List
           </button>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input
-            className="rounded-xl border border-white/30 bg-black/20 px-3 py-2"
-            placeholder="Share with username"
-            value={shareUsername}
-            onChange={(event) => setShareUsername(event.target.value)}
-          />
-          <button className="rounded-xl bg-violet-500 px-3 py-2 text-black" onClick={shareCurrentList}>
-            Share List
-          </button>
-          {shareMessage ? <span className="text-sm text-zinc-300">{shareMessage}</span> : null}
         </div>
       </section>
 
