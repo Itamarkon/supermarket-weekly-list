@@ -598,7 +598,6 @@ export default function Home() {
               {(itemsByCategory[category] || []).map((item: ShoppingItem) => (
                 <div
                   key={item.id}
-                  onDragEnd={() => setDragOverCategory(null)}
                   className={`rounded-xl border p-2 ${
                     item.status === "bought"
                       ? "border-emerald-400 bg-emerald-500/30"
@@ -607,20 +606,7 @@ export default function Home() {
                         : "border-white/20 bg-black/25"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold">{item.name}</p>
-                    <button
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData("text/plain", item.id);
-                        event.dataTransfer.effectAllowed = "move";
-                      }}
-                      className="cursor-grab rounded-md bg-zinc-700 px-2 py-1 text-xs active:cursor-grabbing"
-                      title="Drag this handle to another category"
-                    >
-                      Drag
-                    </button>
-                  </div>
+                  <p className="font-semibold">{item.name}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <span className="text-xs">Qty:</span>
                     <button
