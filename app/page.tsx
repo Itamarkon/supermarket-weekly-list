@@ -178,6 +178,14 @@ export default function Home() {
     setIsLoggedIn(true);
   }
 
+  function onAuthInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    void handleAuth();
+  }
+
   async function handlePasswordReset() {
     const response = await fetch("/api/auth/reset-password", {
       method: "POST",
@@ -480,6 +488,7 @@ export default function Home() {
               className="mb-4 w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
+              onKeyDown={onAuthInputKeyDown}
             />
             <label className="mb-2 block text-sm">Password</label>
             <input
@@ -487,6 +496,7 @@ export default function Home() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={onAuthInputKeyDown}
             />
             {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
             <button
