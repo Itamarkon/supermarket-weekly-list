@@ -35,6 +35,7 @@ type PersistedState = {
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -156,32 +157,40 @@ export default function Home() {
   const repeatedSuggestions = useMemo(() => getRepeatedItemSuggestions(history), [history]);
 
   async function handleAuth() {
-    const route = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-    const response = await fetch(route, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-
-    const payload = (await response.json()) as { error?: string; username?: string };
-    if (!response.ok) {
-      setLoginError(payload.error || "Authentication failed.");
+    if (isAuthSubmitting) {
       return;
     }
+    setIsAuthSubmitting(true);
+    try {
+      const route = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const response = await fetch(route, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-    setLoggedUsername(payload.username || username);
-    setUsername("");
-    setPassword("");
-    setLoginError("");
-    setHasLoadedState(false);
-    await loadRemoteState();
-    setIsLoggedIn(true);
+      const payload = (await response.json()) as { error?: string; username?: string };
+      if (!response.ok) {
+        setLoginError(payload.error || "Authentication failed.");
+        return;
+      }
+
+      setLoggedUsername(payload.username || username);
+      setUsername("");
+      setPassword("");
+      setLoginError("");
+      setHasLoadedState(false);
+      await loadRemoteState();
+      setIsLoggedIn(true);
+    } finally {
+      setIsAuthSubmitting(false);
+    }
   }
 
   function onAuthInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    const key = event.key.toLowerCase();
-    const isSubmitKey =
-      key === "enter" || key === "numpadenter" || key === "go" || key === "done" || key === "send";
+    const key = (event.key || "").toLowerCase();
+    const keyCode = (event.nativeEvent as KeyboardEvent).keyCode;
+    const isSubmitKey = key.includes("enter") || key === "go" || key === "done" || key === "send" || keyCode === 13;
 
     if (!isSubmitKey) {
       return;
@@ -507,9 +516,10 @@ export default function Home() {
             {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
             <button
               type="submit"
-              className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black"
+              disabled={isAuthSubmitting}
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black disabled:opacity-60"
             >
-              {authMode === "login" ? "Login" : "Create account"}
+              {isAuthSubmitting ? "Please wait..." : authMode === "login" ? "Login" : "Create account"}
             </button>
           </form>
           <div className="mt-3 rounded-xl border border-white/20 p-3">
