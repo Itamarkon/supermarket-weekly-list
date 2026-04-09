@@ -89,38 +89,63 @@ export default function Home() {
 
   useEffect(() => {
     async function loadCurrentUser() {
-      const response = await fetch("/api/auth/me");
-      const payload = (await response.json()) as { user: { username: string } | null };
-      if (!payload.user) {
-        return;
-      }
-      setLoggedUsername(payload.user.username);
-      setIsLoggedIn(true);
-      const stateResponse = await fetch("/api/state");
-      if (!stateResponse.ok) {
-        const fallback = createDefaultList();
-        setLists([fallback]);
-        setActiveListId(fallback.id);
-        setHistory({});
+      try {
+        const response = await fetch("/api/auth/me");
+        if (!response.ok) {
+          return;
+        }
+        let payload: { user: { username: string } | null };
+        try {
+          payload = (await response.json()) as { user: { username: string } | null };
+        } catch {
+          return;
+        }
+        if (!payload.user) {
+          return;
+        }
+        setLoggedUsername(payload.user.username);
+        setIsLoggedIn(true);
+        const stateResponse = await fetch("/api/state");
+        if (!stateResponse.ok) {
+          const fallback = createDefaultList();
+          setLists([fallback]);
+          setActiveListId(fallback.id);
+          setHistory({});
+          setHasLoadedState(true);
+          return;
+        }
+        let statePayload: {
+          lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
+          history: Record<string, ItemHistoryEntry>;
+        };
+        try {
+          statePayload = (await stateResponse.json()) as {
+            lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
+            history: Record<string, ItemHistoryEntry>;
+          };
+        } catch {
+          const fallback = createDefaultList();
+          setLists([fallback]);
+          setActiveListId(fallback.id);
+          setHistory({});
+          setHasLoadedState(true);
+          return;
+        }
+        if (!statePayload.lists.length) {
+          const fallback = createDefaultList();
+          setLists([fallback]);
+          setActiveListId(fallback.id);
+          setHistory({});
+          setHasLoadedState(true);
+          return;
+        }
+        setLists(statePayload.lists);
+        setActiveListId(statePayload.lists[0].id);
+        setHistory(statePayload.history || {});
         setHasLoadedState(true);
-        return;
+      } catch {
+        // Network error or unexpected response — stay logged out, avoid blank screen
       }
-      const statePayload = (await stateResponse.json()) as {
-        lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
-        history: Record<string, ItemHistoryEntry>;
-      };
-      if (!statePayload.lists.length) {
-        const fallback = createDefaultList();
-        setLists([fallback]);
-        setActiveListId(fallback.id);
-        setHistory({});
-        setHasLoadedState(true);
-        return;
-      }
-      setLists(statePayload.lists);
-      setActiveListId(statePayload.lists[0].id);
-      setHistory(statePayload.history || {});
-      setHasLoadedState(true);
     }
     loadCurrentUser();
   }, []);
@@ -179,7 +204,13 @@ export default function Home() {
         body: JSON.stringify({ username, password }),
       });
 
-      const payload = (await response.json()) as { error?: string; username?: string };
+      let payload: { error?: string; username?: string };
+      try {
+        payload = (await response.json()) as { error?: string; username?: string };
+      } catch {
+        setLoginError(response.ok ? "Unexpected server response." : "Authentication failed.");
+        return;
+      }
       if (!response.ok) {
         setLoginError(payload.error || "Authentication failed.");
         return;
@@ -192,6 +223,8 @@ export default function Home() {
       setIsLoggedIn(true);
       setHasLoadedState(false);
       await loadRemoteState();
+    } catch {
+      setLoginError("Network error. Check your connection and try again.");
     } finally {
       setIsAuthSubmitting(false);
     }

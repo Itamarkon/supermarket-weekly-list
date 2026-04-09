@@ -3,15 +3,27 @@ import { cookies } from "next/headers";
 import { getUserById, type StoredUser } from "./data";
 
 const COOKIE_NAME = "shopping_session";
-const SESSION_SECRET = process.env.SESSION_SECRET || "dev-shopping-session-secret-change-me";
+const DEV_SESSION_FALLBACK = "dev-shopping-session-secret-change-me";
 const COOKIE_MAX_AGE_SECONDS = Number(process.env.SESSION_MAX_AGE_SECONDS || 60 * 60 * 12);
 
-if (process.env.NODE_ENV === "production" && SESSION_SECRET === "dev-shopping-session-secret-change-me") {
-  throw new Error("SESSION_SECRET must be configured in production.");
+// Defer secret checks to signing time so importing this module does not crash Preview when
+// SESSION_SECRET is unset (Vercel Preview is still NODE_ENV=production).
+function resolveSessionSecret(context: "issue" | "verify"): string {
+  const fromEnv = process.env.SESSION_SECRET?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const isProdRuntime = process.env.NODE_ENV === "production";
+  const isVercelPreview = process.env.VERCEL_ENV === "preview";
+  if (context === "issue" && isProdRuntime && !isVercelPreview) {
+    throw new Error("SESSION_SECRET must be configured in production.");
+  }
+  return DEV_SESSION_FALLBACK;
 }
 
-function sign(payload: string): string {
-  return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+function sign(payload: string, context: "issue" | "verify"): string {
+  const secret = resolveSessionSecret(context);
+  return crypto.createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
 function createToken(userId: string): string {
@@ -20,7 +32,7 @@ function createToken(userId: string): string {
     exp: Date.now() + COOKIE_MAX_AGE_SECONDS * 1000,
   };
   const payload = Buffer.from(JSON.stringify(payloadObj)).toString("base64url");
-  return `${payload}.${sign(payload)}`;
+  return `${payload}.${sign(payload, "issue")}`;
 }
 
 function verifyToken(token: string): { userId: string; exp: number } | null {
@@ -28,7 +40,7 @@ function verifyToken(token: string): { userId: string; exp: number } | null {
   if (!payload || !signature) {
     return null;
   }
-  const expectedSig = sign(payload);
+  const expectedSig = sign(payload, "verify");
   if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
     return null;
   }

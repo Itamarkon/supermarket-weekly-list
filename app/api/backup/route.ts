@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/server/auth";
 import { getVisibleStateForUser, saveUserState } from "@/app/lib/server/data";
+import { isSupabaseConfigured } from "@/app/lib/server/supabase";
 
 type HistoryShape = Record<string, { weeksInRow: number; totalTimes: number }>;
 type BackupShape = {
@@ -27,6 +28,12 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Database is not configured for this deployment (missing Supabase env vars)." },
+      { status: 503 }
+    );
+  }
 
   const state = await getVisibleStateForUser(user.id);
   const backup: BackupShape = {
@@ -52,6 +59,12 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Database is not configured for this deployment (missing Supabase env vars)." },
+      { status: 503 }
+    );
   }
 
   try {

@@ -119,6 +119,10 @@ type Database = {
 
 let cachedClient: ReturnType<typeof createClient<Database>> | null = null;
 
+export function isSupabaseConfigured(): boolean {
+  return Boolean(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
+}
+
 export function getSupabaseAdmin() {
   if (cachedClient) {
     return cachedClient;

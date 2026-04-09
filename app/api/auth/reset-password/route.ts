@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "@/app/lib/server/auth";
 import { updateUserPasswordByUsername } from "@/app/lib/server/data";
 import { checkRateLimit, getClientIp } from "@/app/lib/server/rate-limit";
+import { isSupabaseConfigured } from "@/app/lib/server/supabase";
 
 export async function POST(request: Request) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Database is not configured for this deployment (missing Supabase env vars)." },
+        { status: 503 }
+      );
+    }
     const body = (await request.json()) as { username?: string; newPassword?: string };
     const username = body.username || "";
     const newPassword = body.newPassword || "";
