@@ -33,7 +33,9 @@ export async function POST(request: Request) {
     await setSessionCookie(userId);
 
     return NextResponse.json({ username });
-  } catch {
-    return NextResponse.json({ error: "Failed to register user." }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to register user.";
+    console.error("Register failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

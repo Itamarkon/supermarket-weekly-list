@@ -20,7 +20,9 @@ export async function POST(request: Request) {
 
     await setSessionCookie(user.id);
     return NextResponse.json({ username: user.username });
-  } catch {
-    return NextResponse.json({ error: "Failed to login." }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to login.";
+    console.error("Login failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
