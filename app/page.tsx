@@ -59,6 +59,11 @@ export default function Home() {
   async function loadRemoteState() {
     const response = await fetch("/api/state");
     if (!response.ok) {
+      const fallback = createDefaultList();
+      setLists([fallback]);
+      setActiveListId(fallback.id);
+      setHistory({});
+      setHasLoadedState(true);
       return;
     }
 
@@ -93,6 +98,11 @@ export default function Home() {
       setIsLoggedIn(true);
       const stateResponse = await fetch("/api/state");
       if (!stateResponse.ok) {
+        const fallback = createDefaultList();
+        setLists([fallback]);
+        setActiveListId(fallback.id);
+        setHistory({});
+        setHasLoadedState(true);
         return;
       }
       const statePayload = (await stateResponse.json()) as {
@@ -179,9 +189,9 @@ export default function Home() {
       setUsername("");
       setPassword("");
       setLoginError("");
+      setIsLoggedIn(true);
       setHasLoadedState(false);
       await loadRemoteState();
-      setIsLoggedIn(true);
     } finally {
       setIsAuthSubmitting(false);
     }
