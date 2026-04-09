@@ -4,7 +4,11 @@ import { getUserById, type StoredUser } from "./data";
 
 const COOKIE_NAME = "shopping_session";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-shopping-session-secret-change-me";
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const COOKIE_MAX_AGE_SECONDS = Number(process.env.SESSION_MAX_AGE_SECONDS || 60 * 60 * 12);
+
+if (process.env.NODE_ENV === "production" && SESSION_SECRET === "dev-shopping-session-secret-change-me") {
+  throw new Error("SESSION_SECRET must be configured in production.");
+}
 
 function sign(payload: string): string {
   return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");

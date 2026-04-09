@@ -111,6 +111,38 @@ export async function createUser(user: StoredUser): Promise<void> {
   }
 }
 
+export async function countUsers(): Promise<number> {
+  const supabaseAdmin = getSupabaseAdmin() as any;
+  const { count, error } = await supabaseAdmin
+    .from("shopping_users")
+    .select("id", { count: "exact", head: true });
+  if (error) {
+    throw new Error(error.message);
+  }
+  return count || 0;
+}
+
+export async function updateUserPasswordByUsername(
+  username: string,
+  passwordHash: string,
+  passwordSalt: string
+): Promise<boolean> {
+  const supabaseAdmin = getSupabaseAdmin() as any;
+  const { data, error } = await supabaseAdmin
+    .from("shopping_users")
+    .update({
+      password_hash: passwordHash,
+      password_salt: passwordSalt,
+    })
+    .eq("username", username)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return Boolean(data?.id);
+}
+
 export async function cleanupExpiredData(): Promise<void> {
   const supabaseAdmin = getSupabaseAdmin() as any;
   const cutoff = new Date();

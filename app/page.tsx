@@ -50,6 +50,9 @@ export default function Home() {
   const [itemCategory, setItemCategory] = useState<string>(CATEGORIES[0]);
   const [duplicateMessage, setDuplicateMessage] = useState("");
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
 
   async function loadRemoteState() {
@@ -175,6 +178,21 @@ export default function Home() {
     setIsLoggedIn(true);
   }
 
+  async function handlePasswordReset() {
+    const response = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: resetUsername, newPassword: resetPassword }),
+    });
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setForgotPasswordMessage(payload.error || "Password reset failed.");
+      return;
+    }
+    setForgotPasswordMessage("Password updated. You can login now.");
+    setResetPassword("");
+  }
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setIsLoggedIn(false);
@@ -183,6 +201,49 @@ export default function Home() {
     setActiveListId("");
     setHistory({});
     setHasLoadedState(false);
+  }
+
+  async function exportBackup() {
+    const response = await fetch("/api/backup");
+    if (!response.ok) {
+      setBackupMessage("Backup export failed.");
+      return;
+    }
+    const data = await response.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shopping-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setBackupMessage("Backup exported.");
+  }
+
+  async function importBackup(file: File | null) {
+    if (!file) {
+      return;
+    }
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const response = await fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setBackupMessage(payload.error || "Backup import failed.");
+        return;
+      }
+      setBackupMessage("Backup imported.");
+      await loadRemoteState();
+    } catch {
+      setBackupMessage("Invalid backup file.");
+    }
   }
 
   function addItem(nameFromButton?: string) {
@@ -408,37 +469,56 @@ export default function Home() {
               Register
             </button>
           </div>
-          <label className="mb-2 block text-sm">Username</label>
-          <input
-            className="mb-4 w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <label className="mb-2 block text-sm">Password</label>
-          <input
-            className="w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
-          {forgotPasswordMessage ? <p className="mt-2 text-sm text-amber-300">{forgotPasswordMessage}</p> : null}
-          <button
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black"
-            onClick={handleAuth}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAuth();
+            }}
           >
-            {authMode === "login" ? "Login" : "Create account"}
-          </button>
-          <button
-            className="mt-2 w-full rounded-xl border border-white/25 px-4 py-3 text-sm"
-            onClick={() =>
-              setForgotPasswordMessage(
-                "Forgot password: use the same family account credentials or create a new account."
-              )
-            }
-          >
-            Forgot password?
-          </button>
+            <label className="mb-2 block text-sm">Username</label>
+            <input
+              className="mb-4 w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+            <label className="mb-2 block text-sm">Password</label>
+            <input
+              className="w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
+            <button
+              type="submit"
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black"
+            >
+              {authMode === "login" ? "Login" : "Create account"}
+            </button>
+          </form>
+          <div className="mt-3 rounded-xl border border-white/20 p-3">
+            <p className="mb-2 text-sm font-semibold">Forgot password?</p>
+            <input
+              className="mb-2 w-full rounded-xl border border-white/30 bg-black/20 px-3 py-2 text-sm"
+              placeholder="Username"
+              value={resetUsername}
+              onChange={(event) => setResetUsername(event.target.value)}
+            />
+            <input
+              className="w-full rounded-xl border border-white/30 bg-black/20 px-3 py-2 text-sm"
+              type="password"
+              placeholder="New password"
+              value={resetPassword}
+              onChange={(event) => setResetPassword(event.target.value)}
+            />
+            <button
+              className="mt-2 w-full rounded-xl border border-white/25 px-4 py-2 text-sm"
+              onClick={() => void handlePasswordReset()}
+            >
+              Reset password
+            </button>
+            {forgotPasswordMessage ? <p className="mt-2 text-sm text-amber-300">{forgotPasswordMessage}</p> : null}
+          </div>
         </section>
       </main>
     );
@@ -506,45 +586,67 @@ export default function Home() {
       </section>
 
       <section className="mb-4 rounded-3xl border border-white/20 bg-zinc-900/60 p-4 shadow-xl shadow-black/20 backdrop-blur">
-        <h2 className="mb-3 text-lg font-semibold">Quick Add / Search</h2>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-          <input
-            placeholder="Product name"
-            className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
-            value={itemName}
-            onChange={(event) => setItemName(event.target.value)}
-          />
-          <select
-            className="rounded-xl border border-white/30 bg-black px-3 py-3"
-            value={itemCategory}
-            onChange={(event) => setItemCategory(event.target.value)}
-          >
-            {CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min={1}
-            className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
-            value={itemQty}
-            onChange={(event) => setItemQty(Number(event.target.value || 1))}
-          />
-          <input
-            placeholder="Notes (optional)"
-            className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
-            value={itemNotes}
-            onChange={(event) => setItemNotes(event.target.value)}
-          />
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button className="rounded-xl bg-indigo-500 px-3 py-2 text-sm text-black" onClick={() => void exportBackup()}>
+            Export Backup
+          </button>
+          <label className="cursor-pointer rounded-xl bg-indigo-800 px-3 py-2 text-sm">
+            Import Backup
+            <input
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(event) => void importBackup(event.target.files?.[0] || null)}
+            />
+          </label>
+          {backupMessage ? <span className="text-sm text-zinc-300">{backupMessage}</span> : null}
         </div>
-        <button
-          className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30"
-          onClick={() => addItem()}
+        <h2 className="mb-3 text-lg font-semibold">Quick Add / Search</h2>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            addItem();
+          }}
         >
-          Add Item
-        </button>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+            <input
+              placeholder="Product name"
+              className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
+              value={itemName}
+              onChange={(event) => setItemName(event.target.value)}
+            />
+            <select
+              className="rounded-xl border border-white/30 bg-black px-3 py-3"
+              value={itemCategory}
+              onChange={(event) => setItemCategory(event.target.value)}
+            >
+              {CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
+              value={itemQty}
+              onChange={(event) => setItemQty(Number(event.target.value || 1))}
+            />
+            <input
+              placeholder="Notes (optional)"
+              className="rounded-xl border border-white/30 bg-black/20 px-3 py-3"
+              value={itemNotes}
+              onChange={(event) => setItemNotes(event.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30"
+          >
+            Add Item
+          </button>
+        </form>
         {duplicateMessage ? <p className="mt-2 text-sm text-amber-300">{duplicateMessage}</p> : null}
 
         <p className="mt-4 mb-2 text-sm opacity-80">Suggestions:</p>

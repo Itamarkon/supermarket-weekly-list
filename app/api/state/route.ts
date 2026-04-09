@@ -52,6 +52,9 @@ export async function PUT(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to save state.";
     const status = message.includes("limit exceeded") ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 400 ? message : "Failed to save state." },
+      { status }
+    );
   }
 }
