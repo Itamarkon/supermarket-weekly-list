@@ -598,6 +598,12 @@ export default function Home() {
               {(itemsByCategory[category] || []).map((item: ShoppingItem) => (
                 <div
                   key={item.id}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", item.id);
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => setDragOverCategory(null)}
                   className={`rounded-xl border p-2 ${
                     item.status === "bought"
                       ? "border-emerald-400 bg-emerald-500/30"
@@ -630,20 +636,6 @@ export default function Home() {
                     </button>
                   </div>
                   {item.notes ? <p className="text-xs opacity-85">Notes: {item.notes}</p> : null}
-                  <div className="mt-2">
-                    <label className="mb-1 block text-xs opacity-80">Move to category:</label>
-                    <select
-                      className="w-full rounded-md border border-white/30 bg-black/20 px-2 py-1 text-xs"
-                      value={item.category}
-                      onChange={(event) => moveItemToCategory(item.id, event.target.value)}
-                    >
-                      {CATEGORIES.map((categoryOption) => (
-                        <option key={categoryOption} value={categoryOption}>
-                          {categoryOption}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       className="rounded-lg bg-emerald-500 px-2 py-1 text-xs text-black"
