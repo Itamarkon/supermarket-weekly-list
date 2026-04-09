@@ -50,6 +50,7 @@ export default function Home() {
   const [itemCategory, setItemCategory] = useState<string>(CATEGORIES[0]);
   const [duplicateMessage, setDuplicateMessage] = useState("");
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
+  const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
 
   async function loadRemoteState() {
     const response = await fetch("/api/state");
@@ -273,6 +274,29 @@ export default function Home() {
         return {
           ...list,
           items: list.items.map((item) => (item.id === itemId ? { ...item, quantity: safeQty } : item)),
+        };
+      })
+    );
+  }
+
+  function moveItemToCategory(itemId: string, targetCategory: string) {
+    if (!activeList) {
+      return;
+    }
+    if (activeList.isOwner === false) {
+      return;
+    }
+
+    setLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== activeList.id) {
+          return list;
+        }
+        return {
+          ...list,
+          items: list.items.map((item) =>
+            item.id === itemId ? { ...item, category: targetCategory } : item
+          ),
         };
       })
     );
@@ -548,12 +572,38 @@ export default function Home() {
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         {CATEGORIES.map((category) => (
-          <article key={category} className="rounded-3xl border border-white/20 bg-zinc-900/60 p-3 shadow-lg shadow-black/20">
+          <article
+            key={category}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragOverCategory(category);
+            }}
+            onDragLeave={() => setDragOverCategory((current) => (current === category ? null : current))}
+            onDrop={(event) => {
+              event.preventDefault();
+              const itemId = event.dataTransfer.getData("text/plain");
+              if (itemId) {
+                moveItemToCategory(itemId, category);
+              }
+              setDragOverCategory(null);
+            }}
+            className={`rounded-3xl border p-3 shadow-lg shadow-black/20 ${
+              dragOverCategory === category
+                ? "border-sky-300 bg-sky-900/40"
+                : "border-white/20 bg-zinc-900/60"
+            }`}
+          >
             <h3 className="mb-2 text-base font-bold">{category}</h3>
             <div className="space-y-2">
               {(itemsByCategory[category] || []).map((item: ShoppingItem) => (
                 <div
                   key={item.id}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", item.id);
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => setDragOverCategory(null)}
                   className={`rounded-xl border p-2 ${
                     item.status === "bought"
                       ? "border-emerald-400 bg-emerald-500/30"
