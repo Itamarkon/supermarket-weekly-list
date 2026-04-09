@@ -56,9 +56,16 @@ export default function Home() {
   const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const authFormRef = useRef<HTMLFormElement>(null);
+  /** Last JSON we successfully persisted (or loaded from server) — skips duplicate autosave PUTs. */
+  const lastPersistedJsonRef = useRef<string | null>(null);
 
   function applyLocalFallbackList() {
     const fallback = createDefaultList();
+    lastPersistedJsonRef.current = JSON.stringify({
+      lists: [fallback],
+      activeListId: fallback.id,
+      history: {},
+    });
     setLists([fallback]);
     setActiveListId(fallback.id);
     setHistory({});
@@ -87,6 +94,11 @@ export default function Home() {
         applyLocalFallbackList();
         return;
       }
+      lastPersistedJsonRef.current = JSON.stringify({
+        lists: payload.lists,
+        activeListId: payload.lists[0].id,
+        history: payload.history || {},
+      });
       setLists(payload.lists);
       setActiveListId(payload.lists[0].id);
       setHistory(payload.history || {});
@@ -127,15 +139,23 @@ export default function Home() {
       return;
     }
 
+    const value: PersistedState = { lists, activeListId, history };
+    const body = JSON.stringify(value);
+    if (body === lastPersistedJsonRef.current) {
+      return;
+    }
+
     const timeout = setTimeout(async () => {
-      const value: PersistedState = { lists, activeListId, history };
-      await fetch("/api/state", {
+      const response = await fetch("/api/state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify(value),
+        body,
       });
-    }, 400);
+      if (response.ok) {
+        lastPersistedJsonRef.current = body;
+      }
+    }, 600);
 
     return () => clearTimeout(timeout);
   }, [lists, activeListId, history, isLoggedIn, hasLoadedState]);
@@ -246,6 +266,7 @@ export default function Home() {
   }
 
   async function handleLogout() {
+    lastPersistedJsonRef.current = null;
     await fetch("/api/auth/logout", { method: "POST" });
     setIsLoggedIn(false);
     setLoggedUsername("");
@@ -525,6 +546,7 @@ export default function Home() {
           </div>
           <form
             ref={authFormRef}
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               void handleAuth();
@@ -565,9 +587,13 @@ export default function Home() {
             />
             {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
             <button
-              type="submit"
+              type="button"
               disabled={isAuthSubmitting}
               className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black disabled:opacity-60"
+              onClick={(event) => {
+                event.preventDefault();
+                void handleAuth();
+              }}
             >
               {isAuthSubmitting ? "Please wait..." : authMode === "login" ? "Login" : "Create account"}
             </button>
@@ -686,6 +712,7 @@ export default function Home() {
         </div>
         <h2 className="mb-3 text-lg font-semibold">Quick Add / Search</h2>
         <form
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             addItem();
@@ -724,8 +751,12 @@ export default function Home() {
             />
           </div>
           <button
-            type="submit"
+            type="button"
             className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30"
+            onClick={(event) => {
+              event.preventDefault();
+              addItem();
+            }}
           >
             Add Item
           </button>
