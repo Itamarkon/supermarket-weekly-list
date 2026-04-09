@@ -179,7 +179,11 @@ export default function Home() {
   }
 
   function onAuthInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") {
+    const key = event.key.toLowerCase();
+    const isSubmitKey =
+      key === "enter" || key === "numpadenter" || key === "go" || key === "done" || key === "send";
+
+    if (!isSubmitKey) {
       return;
     }
     event.preventDefault();
@@ -489,6 +493,7 @@ export default function Home() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               onKeyDown={onAuthInputKeyDown}
+              enterKeyHint="go"
             />
             <label className="mb-2 block text-sm">Password</label>
             <input
@@ -497,6 +502,7 @@ export default function Home() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               onKeyDown={onAuthInputKeyDown}
+              enterKeyHint="go"
             />
             {loginError ? <p className="mt-3 text-sm text-red-300">{loginError}</p> : null}
             <button
