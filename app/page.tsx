@@ -56,35 +56,43 @@ export default function Home() {
   const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
 
-  async function loadRemoteState() {
-    const response = await fetch("/api/state");
-    if (!response.ok) {
-      const fallback = createDefaultList();
-      setLists([fallback]);
-      setActiveListId(fallback.id);
-      setHistory({});
-      setHasLoadedState(true);
-      return;
-    }
-
-    const payload = (await response.json()) as {
-      lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
-      history: Record<string, ItemHistoryEntry>;
-    };
-
-    if (!payload.lists.length) {
-      const fallback = createDefaultList();
-      setLists([fallback]);
-      setActiveListId(fallback.id);
-      setHistory({});
-      setHasLoadedState(true);
-      return;
-    }
-
-    setLists(payload.lists);
-    setActiveListId(payload.lists[0].id);
-    setHistory(payload.history || {});
+  function applyLocalFallbackList() {
+    const fallback = createDefaultList();
+    setLists([fallback]);
+    setActiveListId(fallback.id);
+    setHistory({});
     setHasLoadedState(true);
+  }
+
+  /** Never throws — used after login and on session restore so UI never sticks on “Loading…”. */
+  async function loadRemoteState() {
+    try {
+      const response = await fetch("/api/state");
+      if (!response.ok) {
+        applyLocalFallbackList();
+        return;
+      }
+      let payload: {
+        lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
+        history: Record<string, ItemHistoryEntry>;
+      };
+      try {
+        payload = (await response.json()) as typeof payload;
+      } catch {
+        applyLocalFallbackList();
+        return;
+      }
+      if (!Array.isArray(payload.lists) || !payload.lists.length) {
+        applyLocalFallbackList();
+        return;
+      }
+      setLists(payload.lists);
+      setActiveListId(payload.lists[0].id);
+      setHistory(payload.history || {});
+      setHasLoadedState(true);
+    } catch {
+      applyLocalFallbackList();
+    }
   }
 
   useEffect(() => {
@@ -104,45 +112,8 @@ export default function Home() {
           return;
         }
         setLoggedUsername(payload.user.username);
+        await loadRemoteState();
         setIsLoggedIn(true);
-        const stateResponse = await fetch("/api/state");
-        if (!stateResponse.ok) {
-          const fallback = createDefaultList();
-          setLists([fallback]);
-          setActiveListId(fallback.id);
-          setHistory({});
-          setHasLoadedState(true);
-          return;
-        }
-        let statePayload: {
-          lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
-          history: Record<string, ItemHistoryEntry>;
-        };
-        try {
-          statePayload = (await stateResponse.json()) as {
-            lists: (ShoppingList & { ownerId?: string; isOwner?: boolean })[];
-            history: Record<string, ItemHistoryEntry>;
-          };
-        } catch {
-          const fallback = createDefaultList();
-          setLists([fallback]);
-          setActiveListId(fallback.id);
-          setHistory({});
-          setHasLoadedState(true);
-          return;
-        }
-        if (!statePayload.lists.length) {
-          const fallback = createDefaultList();
-          setLists([fallback]);
-          setActiveListId(fallback.id);
-          setHistory({});
-          setHasLoadedState(true);
-          return;
-        }
-        setLists(statePayload.lists);
-        setActiveListId(statePayload.lists[0].id);
-        setHistory(statePayload.history || {});
-        setHasLoadedState(true);
       } catch {
         // Network error or unexpected response — stay logged out, avoid blank screen
       }
@@ -216,13 +187,13 @@ export default function Home() {
         return;
       }
 
-      setLoggedUsername(payload.username || username);
       setUsername("");
       setPassword("");
       setLoginError("");
-      setIsLoggedIn(true);
       setHasLoadedState(false);
       await loadRemoteState();
+      setLoggedUsername(payload.username || username);
+      setIsLoggedIn(true);
     } catch {
       setLoginError("Network error. Check your connection and try again.");
     } finally {
