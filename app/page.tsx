@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createDefaultList,
   formatEuropeanDate,
@@ -55,6 +55,7 @@ export default function Home() {
   const [resetPassword, setResetPassword] = useState("");
   const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const authFormRef = useRef<HTMLFormElement>(null);
 
   function applyLocalFallbackList() {
     const fallback = createDefaultList();
@@ -67,7 +68,7 @@ export default function Home() {
   /** Never throws — used after login and on session restore so UI never sticks on “Loading…”. */
   async function loadRemoteState() {
     try {
-      const response = await fetch("/api/state");
+      const response = await fetch("/api/state", { credentials: "same-origin" });
       if (!response.ok) {
         applyLocalFallbackList();
         return;
@@ -98,7 +99,7 @@ export default function Home() {
   useEffect(() => {
     async function loadCurrentUser() {
       try {
-        const response = await fetch("/api/auth/me");
+        const response = await fetch("/api/auth/me", { credentials: "same-origin" });
         if (!response.ok) {
           return;
         }
@@ -131,6 +132,7 @@ export default function Home() {
       await fetch("/api/state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify(value),
       });
     }, 400);
@@ -162,17 +164,32 @@ export default function Home() {
 
   const repeatedSuggestions = useMemo(() => getRepeatedItemSuggestions(history), [history]);
 
+  function readAuthCredentials() {
+    const form = authFormRef.current;
+    if (form) {
+      const fd = new FormData(form);
+      const u = (fd.get("username") as string) || "";
+      const p = (fd.get("password") as string) || "";
+      if (u.trim() || p) {
+        return { username: u.trim(), password: p };
+      }
+    }
+    return { username: username.trim(), password };
+  }
+
   async function handleAuth() {
     if (isAuthSubmitting) {
       return;
     }
+    const { username: effectiveUser, password: effectivePass } = readAuthCredentials();
     setIsAuthSubmitting(true);
     try {
       const route = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
       const response = await fetch(route, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        credentials: "same-origin",
+        body: JSON.stringify({ username: effectiveUser, password: effectivePass }),
       });
 
       let payload: { error?: string; username?: string };
@@ -192,7 +209,7 @@ export default function Home() {
       setLoginError("");
       setHasLoadedState(false);
       await loadRemoteState();
-      setLoggedUsername(payload.username || username);
+      setLoggedUsername(payload.username || effectiveUser);
       setIsLoggedIn(true);
     } catch {
       setLoginError("Network error. Check your connection and try again.");
@@ -492,12 +509,14 @@ export default function Home() {
         <section className="mt-6 rounded-3xl border border-white/20 bg-zinc-900/60 p-5 shadow-xl shadow-black/20 backdrop-blur">
           <div className="mb-4 flex gap-2">
             <button
+              type="button"
               className={`rounded-xl px-3 py-2 text-sm ${authMode === "login" ? "bg-emerald-500 text-black" : "bg-zinc-800"}`}
               onClick={() => setAuthMode("login")}
             >
               Login
             </button>
             <button
+              type="button"
               className={`rounded-xl px-3 py-2 text-sm ${authMode === "register" ? "bg-emerald-500 text-black" : "bg-zinc-800"}`}
               onClick={() => setAuthMode("register")}
             >
@@ -505,13 +524,18 @@ export default function Home() {
             </button>
           </div>
           <form
+            ref={authFormRef}
             onSubmit={(event) => {
               event.preventDefault();
               void handleAuth();
             }}
           >
-            <label className="mb-2 block text-sm">Username</label>
+            <label className="mb-2 block text-sm" htmlFor="auth-username">
+              Username
+            </label>
             <input
+              id="auth-username"
+              name="username"
               className="mb-4 w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -522,8 +546,12 @@ export default function Home() {
               spellCheck={false}
               autoComplete="username"
             />
-            <label className="mb-2 block text-sm">Password</label>
+            <label className="mb-2 block text-sm" htmlFor="auth-password">
+              Password
+            </label>
             <input
+              id="auth-password"
+              name="password"
               className="w-full rounded-xl border border-white/30 bg-black/20 px-4 py-3"
               type="password"
               value={password}
