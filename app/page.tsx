@@ -56,9 +56,12 @@ export default function Home() {
   const [resetPassword, setResetPassword] = useState("");
   const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const [pointerDragItemId, setPointerDragItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [plannedDateDraft, setPlannedDateDraft] = useState("");
   const authFormRef = useRef<HTMLFormElement>(null);
+  /** Last column under pointer while dragging (helps drop when the finger hides elementFromPoint). */
+  const pointerDropCategoryRef = useRef<string | null>(null);
   /** Last JSON we successfully persisted (or loaded from server) — skips duplicate autosave PUTs. */
   const lastPersistedJsonRef = useRef<string | null>(null);
 
@@ -488,6 +491,11 @@ export default function Home() {
       return;
     }
 
+    const moving = activeList.items.find((i) => i.id === itemId);
+    if (moving && moving.category === targetCategory) {
+      return;
+    }
+
     setLists((prev) =>
       prev.map((list) => {
         if (list.id !== activeList.id) {
@@ -501,6 +509,57 @@ export default function Home() {
         };
       })
     );
+  }
+
+  /** Pointer-based drag (touch + mouse on handle) — HTML5 DnD does not work on most phones. */
+  function beginPointerCategoryDrag(itemId: string) {
+    if (!activeList || activeList.isOwner === false) {
+      return;
+    }
+
+    setPointerDragItemId(itemId);
+    pointerDropCategoryRef.current = null;
+
+    const categoryUnderPoint = (clientX: number, clientY: number): string | null => {
+      const target = document.elementFromPoint(clientX, clientY);
+      let n: HTMLElement | null = target as HTMLElement | null;
+      while (n) {
+        const c = n.getAttribute("data-shopping-category");
+        if (c) {
+          return c;
+        }
+        n = n.parentElement;
+      }
+      return null;
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const cat = categoryUnderPoint(e.clientX, e.clientY);
+      if (cat) {
+        pointerDropCategoryRef.current = cat;
+      }
+      setDragOverCategory(cat);
+    };
+
+    const onEnd = (e: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      let cat = categoryUnderPoint(e.clientX, e.clientY);
+      if (!cat) {
+        cat = pointerDropCategoryRef.current;
+      }
+      if (cat) {
+        moveItemToCategory(itemId, cat);
+      }
+      pointerDropCategoryRef.current = null;
+      setPointerDragItemId(null);
+      setDragOverCategory(null);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
   }
 
   function addNewList() {
@@ -891,6 +950,7 @@ export default function Home() {
         {CATEGORIES.map((category) => (
           <article
             key={category}
+            data-shopping-category={category}
             onDragOver={(event) => {
               event.preventDefault();
               setDragOverCategory(category);
@@ -915,13 +975,9 @@ export default function Home() {
               {(itemsByCategory[category] || []).map((item: ShoppingItem) => (
                 <div
                   key={item.id}
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData("text/plain", item.id);
-                    event.dataTransfer.effectAllowed = "move";
-                  }}
-                  onDragEnd={() => setDragOverCategory(null)}
-                  className={`rounded-xl border p-2 ${
+                  className={`flex gap-1 rounded-xl border p-0 ${
+                    pointerDragItemId === item.id ? "opacity-80 ring-2 ring-sky-400/60" : ""
+                  } ${
                     item.status === "bought"
                       ? "border-emerald-400 bg-emerald-500/30"
                       : item.status === "out_of_stock"
@@ -929,6 +985,28 @@ export default function Home() {
                         : "border-white/20 bg-black/25"
                   }`}
                 >
+                  <button
+                    type="button"
+                    className="touch-none shrink-0 select-none rounded-l-lg border-r border-white/15 bg-zinc-800/90 px-1.5 py-2 text-[10px] leading-tight text-zinc-400"
+                    title="גרור לעמודה אחרת (טלפון / מחשב)"
+                    aria-label="גרור פריט לעמודה אחרת"
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      beginPointerCategoryDrag(item.id);
+                    }}
+                  >
+                    ⋮⋮
+                  </button>
+                  <div
+                    className="min-w-0 flex-1 p-2"
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("text/plain", item.id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => setDragOverCategory(null)}
+                  >
                   <p className="font-semibold">{item.name}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <span className="text-xs">Qty:</span>
@@ -971,6 +1049,20 @@ export default function Home() {
                     <button className="rounded-lg bg-zinc-500 px-2 py-1 text-xs" onClick={() => deleteItem(item.id)}>
                       Delete
                     </button>
+                  </div>
+                  <label className="md:hidden mt-2 block text-xs text-zinc-400">העבר לקטגוריה / Move to</label>
+                  <select
+                    className="md:hidden mt-1 w-full rounded-lg border border-white/30 bg-black/40 px-2 py-2 text-sm"
+                    aria-label="העבר פריט לקטגוריה"
+                    value={item.category}
+                    onChange={(event) => moveItemToCategory(item.id, event.target.value)}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                   </div>
                 </div>
               ))}
