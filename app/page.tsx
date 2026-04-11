@@ -8,6 +8,7 @@ import {
   getSearchSuggestions,
   hasDuplicateItem,
   normalizeItemName,
+  parseEuropeanDate,
   type ItemHistoryEntry,
   type ShoppingItem,
   type ShoppingItemStatus,
@@ -55,6 +56,8 @@ export default function Home() {
   const [resetPassword, setResetPassword] = useState("");
   const [backupMessage, setBackupMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [plannedDateDraft, setPlannedDateDraft] = useState("");
   const authFormRef = useRef<HTMLFormElement>(null);
   /** Last JSON we successfully persisted (or loaded from server) — skips duplicate autosave PUTs. */
   const lastPersistedJsonRef = useRef<string | null>(null);
@@ -172,6 +175,18 @@ export default function Home() {
     return () => clearTimeout(timeout);
   }, [duplicateMessage]);
 
+  useEffect(() => {
+    if (!backupMessage) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setBackupMessage("");
+    }, 10000);
+
+    return () => clearTimeout(timeout);
+  }, [backupMessage]);
+
   const activeList = useMemo(
     () => lists.find((list) => list.id === activeListId) || lists[0],
     [lists, activeListId]
@@ -183,6 +198,23 @@ export default function Home() {
   );
 
   const repeatedSuggestions = useMemo(() => getRepeatedItemSuggestions(history), [history]);
+
+  useEffect(() => {
+    if (activeList?.plannedDate) {
+      setPlannedDateDraft(formatEuropeanDate(activeList.plannedDate));
+    } else {
+      setPlannedDateDraft("");
+    }
+  }, [activeList?.id, activeList?.plannedDate]);
+
+  function runAddItem(nameFromButton?: string) {
+    if (isAddingItem) {
+      return;
+    }
+    setIsAddingItem(true);
+    addItem(nameFromButton);
+    window.setTimeout(() => setIsAddingItem(false), 400);
+  }
 
   function readAuthCredentials() {
     const form = authFormRef.current;
@@ -356,7 +388,8 @@ export default function Home() {
     setDuplicateMessage("");
   }
 
-  function updateItemStatus(itemId: string, status: ShoppingItemStatus) {
+  /** In Cart: pending/out_of_stock → bought (green); bought → pending (regular). */
+  function toggleInCart(itemId: string) {
     if (!activeList) {
       return;
     }
@@ -371,7 +404,41 @@ export default function Home() {
         }
         return {
           ...list,
-          items: list.items.map((item) => (item.id === itemId ? { ...item, status } : item)),
+          items: list.items.map((item) => {
+            if (item.id !== itemId) {
+              return item;
+            }
+            const next: ShoppingItemStatus = item.status === "bought" ? "pending" : "bought";
+            return { ...item, status: next };
+          }),
+        };
+      })
+    );
+  }
+
+  /** Out of Stock: pending/bought → out_of_stock (red); out_of_stock → pending (regular). */
+  function toggleOutOfStock(itemId: string) {
+    if (!activeList) {
+      return;
+    }
+    if (activeList.isOwner === false) {
+      return;
+    }
+
+    setLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== activeList.id) {
+          return list;
+        }
+        return {
+          ...list,
+          items: list.items.map((item) => {
+            if (item.id !== itemId) {
+              return item;
+            }
+            const next: ShoppingItemStatus = item.status === "out_of_stock" ? "pending" : "out_of_stock";
+            return { ...item, status: next };
+          }),
         };
       })
     );
@@ -672,12 +739,29 @@ export default function Home() {
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm">Planned Date:</label>
+          <label className="text-sm" htmlFor="planned-date-eu">
+            Planned Date (DD/MM/YYYY):
+          </label>
           <input
-            type="date"
-            className="rounded-xl border border-white/30 bg-black/20 px-3 py-2"
-            value={activeList?.plannedDate || ""}
-            onChange={(event) => updateListDate(event.target.value)}
+            id="planned-date-eu"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="DD/MM/YYYY"
+            className="w-40 rounded-xl border border-white/30 bg-black/20 px-3 py-2"
+            value={plannedDateDraft}
+            onChange={(event) => setPlannedDateDraft(event.target.value)}
+            onBlur={() => {
+              if (!activeList?.plannedDate) {
+                return;
+              }
+              const iso = parseEuropeanDate(plannedDateDraft.trim());
+              if (iso) {
+                updateListDate(iso);
+              } else {
+                setPlannedDateDraft(formatEuropeanDate(activeList.plannedDate));
+              }
+            }}
           />
           <button
             className="rounded-xl bg-orange-500 px-3 py-2 text-black shadow-md shadow-orange-900/30"
@@ -696,7 +780,11 @@ export default function Home() {
 
       <section className="mb-4 rounded-3xl border border-white/20 bg-zinc-900/60 p-4 shadow-xl shadow-black/20 backdrop-blur">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <button className="rounded-xl bg-indigo-500 px-3 py-2 text-sm text-black" onClick={() => void exportBackup()}>
+          <button
+            type="button"
+            className="cursor-pointer rounded-xl bg-indigo-500 px-3 py-2 text-sm text-black"
+            onClick={() => void exportBackup()}
+          >
             Export Backup
           </button>
           <label className="cursor-pointer rounded-xl bg-indigo-800 px-3 py-2 text-sm">
@@ -715,7 +803,7 @@ export default function Home() {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            addItem();
+            runAddItem();
           }}
         >
           <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
@@ -752,13 +840,14 @@ export default function Home() {
           </div>
           <button
             type="button"
-            className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30"
+            disabled={isAddingItem}
+            className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30 disabled:opacity-60"
             onClick={(event) => {
               event.preventDefault();
-              addItem();
+              runAddItem();
             }}
           >
-            Add Item
+            {isAddingItem ? "Please wait..." : "Add Item"}
           </button>
         </form>
         {duplicateMessage ? <p className="mt-2 text-sm text-amber-300">{duplicateMessage}</p> : null}
@@ -766,7 +855,13 @@ export default function Home() {
         <p className="mt-4 mb-2 text-sm opacity-80">Suggestions:</p>
         <div className="flex flex-wrap gap-2">
           {searchSuggestions.map((name) => (
-            <button key={name} onClick={() => addItem(name)} className="rounded-full bg-white/15 px-3 py-2 text-sm">
+            <button
+              key={name}
+              type="button"
+              disabled={isAddingItem}
+              onClick={() => runAddItem(name)}
+              className="rounded-full bg-white/15 px-3 py-2 text-sm disabled:opacity-60"
+            >
               {name}
             </button>
           ))}
@@ -777,7 +872,13 @@ export default function Home() {
             <p className="mt-4 mb-2 text-sm text-emerald-200">Bought 4 weeks in a row:</p>
             <div className="flex flex-wrap gap-2">
               {repeatedSuggestions.map((name) => (
-                <button key={name} onClick={() => addItem(name)} className="rounded-full bg-emerald-600 px-3 py-2 text-sm text-black">
+                <button
+                  key={name}
+                  type="button"
+                  disabled={isAddingItem}
+                  onClick={() => runAddItem(name)}
+                  className="rounded-full bg-emerald-600 px-3 py-2 text-sm text-black disabled:opacity-60"
+                >
                   {name}
                 </button>
               ))}
@@ -854,14 +955,16 @@ export default function Home() {
                   {item.notes ? <p className="text-xs opacity-85">Notes: {item.notes}</p> : null}
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
+                      type="button"
                       className="rounded-lg bg-emerald-500 px-2 py-1 text-xs text-black"
-                      onClick={() => updateItemStatus(item.id, "bought")}
+                      onClick={() => toggleInCart(item.id)}
                     >
                       In Cart
                     </button>
                     <button
+                      type="button"
                       className="rounded-lg bg-red-500 px-2 py-1 text-xs text-black"
-                      onClick={() => updateItemStatus(item.id, "out_of_stock")}
+                      onClick={() => toggleOutOfStock(item.id)}
                     >
                       Out of Stock
                     </button>
