@@ -59,6 +59,26 @@ export function getRepeatedItemSuggestions(history: Record<string, ItemHistoryEn
     .slice(0, 5);
 }
 
+export function toggleInCartStatus(current: ShoppingItemStatus): ShoppingItemStatus {
+  return current === "bought" ? "pending" : "bought";
+}
+
+export function toggleOutOfStockStatus(current: ShoppingItemStatus): ShoppingItemStatus {
+  return current === "out_of_stock" ? "pending" : "out_of_stock";
+}
+
+export function applyCloseWeekHistory(
+  prev: Record<string, ItemHistoryEntry>,
+  normalizedNamesOnList: Iterable<string>
+): Record<string, ItemHistoryEntry> {
+  const next: Record<string, ItemHistoryEntry> = { ...prev };
+  for (const key of new Set(normalizedNamesOnList)) {
+    const old = next[key] || { weeksInRow: 0, totalTimes: 0 };
+    next[key] = { weeksInRow: old.weeksInRow + 1, totalTimes: old.totalTimes + 1 };
+  }
+  return next;
+}
+
 export function createDefaultList(): ShoppingList {
   const now = new Date();
   const isoDate = now.toISOString().split("T")[0];

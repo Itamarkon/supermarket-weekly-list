@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  applyCloseWeekHistory,
   createDefaultList,
   formatEuropeanDate,
   getRepeatedItemSuggestions,
@@ -9,9 +10,10 @@ import {
   hasDuplicateItem,
   normalizeItemName,
   parseEuropeanDate,
+  toggleInCartStatus,
+  toggleOutOfStockStatus,
   type ItemHistoryEntry,
   type ShoppingItem,
-  type ShoppingItemStatus,
   type ShoppingList,
 } from "@/app/lib/shopping";
 
@@ -55,14 +57,13 @@ export default function Home() {
   const [resetUsername, setResetUsername] = useState("");
   const [resetPassword, setResetPassword] = useState("");
   const [backupMessage, setBackupMessage] = useState("");
+  const [closeWeekMessage, setCloseWeekMessage] = useState("");
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [pointerDragItemId, setPointerDragItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [plannedDateDraft, setPlannedDateDraft] = useState("");
   const authFormRef = useRef<HTMLFormElement>(null);
-  /** Last column under pointer while dragging (helps drop when the finger hides elementFromPoint). */
   const pointerDropCategoryRef = useRef<string | null>(null);
-  /** Last JSON we successfully persisted (or loaded from server) — skips duplicate autosave PUTs. */
   const lastPersistedJsonRef = useRef<string | null>(null);
 
   function applyLocalFallbackList() {
@@ -78,7 +79,6 @@ export default function Home() {
     setHasLoadedState(true);
   }
 
-  /** Never throws — used after login and on session restore so UI never sticks on “Loading…”. */
   async function loadRemoteState() {
     try {
       const response = await fetch("/api/state", { credentials: "same-origin" });
@@ -133,11 +133,10 @@ export default function Home() {
         setLoggedUsername(payload.user.username);
         await loadRemoteState();
         setIsLoggedIn(true);
-      } catch {
-        // Network error or unexpected response — stay logged out, avoid blank screen
-      }
+      } catch {}
     }
     loadCurrentUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -189,6 +188,16 @@ export default function Home() {
 
     return () => clearTimeout(timeout);
   }, [backupMessage]);
+
+  useEffect(() => {
+    if (!closeWeekMessage) {
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setCloseWeekMessage("");
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, [closeWeekMessage]);
 
   const activeList = useMemo(
     () => lists.find((list) => list.id === activeListId) || lists[0],
@@ -391,7 +400,6 @@ export default function Home() {
     setDuplicateMessage("");
   }
 
-  /** In Cart: pending/out_of_stock → bought (green); bought → pending (regular). */
   function toggleInCart(itemId: string) {
     if (!activeList) {
       return;
@@ -411,15 +419,13 @@ export default function Home() {
             if (item.id !== itemId) {
               return item;
             }
-            const next: ShoppingItemStatus = item.status === "bought" ? "pending" : "bought";
-            return { ...item, status: next };
+            return { ...item, status: toggleInCartStatus(item.status) };
           }),
         };
       })
     );
   }
 
-  /** Out of Stock: pending/bought → out_of_stock (red); out_of_stock → pending (regular). */
   function toggleOutOfStock(itemId: string) {
     if (!activeList) {
       return;
@@ -439,8 +445,7 @@ export default function Home() {
             if (item.id !== itemId) {
               return item;
             }
-            const next: ShoppingItemStatus = item.status === "out_of_stock" ? "pending" : "out_of_stock";
-            return { ...item, status: next };
+            return { ...item, status: toggleOutOfStockStatus(item.status) };
           }),
         };
       })
@@ -511,7 +516,6 @@ export default function Home() {
     );
   }
 
-  /** Pointer-based drag (touch + mouse on handle) — HTML5 DnD does not work on most phones. */
   function beginPointerCategoryDrag(itemId: string) {
     if (!activeList || activeList.isOwner === false) {
       return;
@@ -614,20 +618,9 @@ export default function Home() {
       return;
     }
 
-    const currentNames = new Set(activeList.items.map((item) => normalizeItemName(item.name)));
-    setHistory((prev) => {
-      const next: Record<string, ItemHistoryEntry> = { ...prev };
-      const keys = new Set([...Object.keys(next), ...currentNames]);
-      for (const key of keys) {
-        const old = next[key] || { weeksInRow: 0, totalTimes: 0 };
-        if (currentNames.has(key)) {
-          next[key] = { weeksInRow: old.weeksInRow + 1, totalTimes: old.totalTimes + 1 };
-        } else {
-          next[key] = { weeksInRow: 0, totalTimes: old.totalTimes };
-        }
-      }
-      return next;
-    });
+    const normalizedNames = activeList.items.map((item) => normalizeItemName(item.name));
+    setHistory((prev) => applyCloseWeekHistory(prev, normalizedNames));
+    setCloseWeekMessage("Track updated for this week.");
   }
 
   const itemsByCategory = useMemo(() => {
@@ -823,17 +816,22 @@ export default function Home() {
             }}
           />
           <button
+            type="button"
             className="rounded-xl bg-orange-500 px-3 py-2 text-black shadow-md shadow-orange-900/30"
             onClick={closeListAndTrackRepeats}
           >
             Close Week + Track Repeats
           </button>
           <button
+            type="button"
             className="rounded-xl bg-red-500 px-3 py-2 text-black shadow-md shadow-red-900/30"
             onClick={deleteCurrentList}
           >
             Delete Current List
           </button>
+          {closeWeekMessage ? (
+            <span className="w-full text-sm text-emerald-200 sm:w-auto">{closeWeekMessage}</span>
+          ) : null}
         </div>
       </section>
 
@@ -898,13 +896,9 @@ export default function Home() {
             />
           </div>
           <button
-            type="button"
+            type="submit"
             disabled={isAddingItem}
             className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-4 py-3 text-lg font-semibold text-black shadow-lg shadow-emerald-900/30 disabled:opacity-60"
-            onClick={(event) => {
-              event.preventDefault();
-              runAddItem();
-            }}
           >
             {isAddingItem ? "Please wait..." : "Add Item"}
           </button>
