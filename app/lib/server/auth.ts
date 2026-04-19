@@ -6,8 +6,6 @@ const COOKIE_NAME = "shopping_session";
 const DEV_SESSION_FALLBACK = "dev-shopping-session-secret-change-me";
 const COOKIE_MAX_AGE_SECONDS = Number(process.env.SESSION_MAX_AGE_SECONDS || 60 * 60 * 12);
 
-// Defer secret checks to signing time so importing this module does not crash Preview when
-// SESSION_SECRET is unset (Vercel Preview is still NODE_ENV=production).
 function resolveSessionSecret(context: "issue" | "verify"): string {
   const fromEnv = process.env.SESSION_SECRET?.trim();
   if (fromEnv) {
