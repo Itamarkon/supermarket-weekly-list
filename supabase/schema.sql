@@ -56,3 +56,13 @@ create index if not exists idx_shopping_list_items_list_id
 
 create index if not exists idx_shopping_list_shares_user_id
   on shopping_list_shares (user_id);
+
+create table if not exists oos_email_sends (
+  id bigserial primary key,
+  user_id text not null references shopping_users(id) on delete cascade,
+  list_id text not null,
+  sent_at timestamptz not null default now()
+);
+
+create index if not exists idx_oos_email_sends_user_sent
+  on oos_email_sends (user_id, sent_at desc);

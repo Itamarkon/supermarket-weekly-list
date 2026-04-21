@@ -58,6 +58,8 @@ export default function Home() {
   const [resetPassword, setResetPassword] = useState("");
   const [backupMessage, setBackupMessage] = useState("");
   const [closeWeekMessage, setCloseWeekMessage] = useState("");
+  const [oosEmailMessage, setOosEmailMessage] = useState("");
+  const [isSendingOosEmail, setIsSendingOosEmail] = useState(false);
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [pointerDragItemId, setPointerDragItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -198,6 +200,16 @@ export default function Home() {
     }, 10000);
     return () => clearTimeout(timeout);
   }, [closeWeekMessage]);
+
+  useEffect(() => {
+    if (!oosEmailMessage) {
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setOosEmailMessage("");
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, [oosEmailMessage]);
 
   const activeList = useMemo(
     () => lists.find((list) => list.id === activeListId) || lists[0],
@@ -623,6 +635,56 @@ export default function Home() {
     setCloseWeekMessage("Track updated for this week.");
   }
 
+  async function emailOutOfStockList() {
+    if (!activeList) {
+      return;
+    }
+    if (isSendingOosEmail) {
+      return;
+    }
+    setIsSendingOosEmail(true);
+    setOosEmailMessage("");
+    try {
+      const response = await fetch("/api/email/out-of-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          listId: activeList.id,
+          listTitle: activeList.title,
+          items: activeList.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            status: item.status,
+          })),
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        empty?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (response.status === 429) {
+        setOosEmailMessage(data.message || "Rate Limit > 1");
+        return;
+      }
+      if (!response.ok || !data.ok) {
+        setOosEmailMessage("Could not send; try later");
+        return;
+      }
+      if (data.empty) {
+        setOosEmailMessage("Nothing out of stock");
+        return;
+      }
+      setOosEmailMessage("Sent");
+    } catch {
+      setOosEmailMessage("Could not send; try later");
+    } finally {
+      setIsSendingOosEmail(false);
+    }
+  }
+
   const itemsByCategory = useMemo(() => {
     if (!activeList) {
       return {};
@@ -829,8 +891,19 @@ export default function Home() {
           >
             Delete Current List
           </button>
+          <button
+            type="button"
+            disabled={isSendingOosEmail}
+            className="rounded-xl bg-sky-500 px-3 py-2 text-black shadow-md shadow-sky-900/30 disabled:opacity-60"
+            onClick={() => void emailOutOfStockList()}
+          >
+            {isSendingOosEmail ? "Sending..." : "Email out-of-stock list"}
+          </button>
           {closeWeekMessage ? (
             <span className="w-full text-sm text-emerald-200 sm:w-auto">{closeWeekMessage}</span>
+          ) : null}
+          {oosEmailMessage ? (
+            <span className="w-full text-sm text-sky-200 sm:w-auto">{oosEmailMessage}</span>
           ) : null}
         </div>
       </section>
