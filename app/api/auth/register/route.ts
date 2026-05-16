@@ -6,14 +6,21 @@ import { checkRateLimit, getClientIp } from "@/app/lib/server/rate-limit";
 import { isSupabaseConfigured } from "@/app/lib/server/supabase";
 
 export async function POST(request: Request) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Database is not configured for this deployment (missing Supabase env vars)." },
+      { status: 503 }
+    );
+  }
+
+  let body: { username?: string; password?: string };
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: "Database is not configured for this deployment (missing Supabase env vars)." },
-        { status: 503 }
-      );
-    }
-    const body = (await request.json()) as { username?: string; password?: string };
+    body = (await request.json()) as { username?: string; password?: string };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  try {
     const username = body.username || "";
     const password = body.password || "";
     const ip = getClientIp(request);

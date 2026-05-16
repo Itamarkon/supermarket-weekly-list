@@ -23,21 +23,20 @@ Every test below is justified by either (a) a known fragile code path in the cur
 
 ## 2. Current state
 
-> **Update (2026-05-16):** Tier 1 has been fully implemented. The numbers below now reflect the state **after** Tier 1 landed. See Section 13 (Implementation log) for details.
+> **Update (2026-05-16):** Tiers 1 and 2 have both been fully implemented. The numbers below reflect the state **after** Tier 2 landed. See Section 13 (Implementation log) for per-tier details.
 
-| | Original (when doc was written) | Now |
-|---|---|---|
-| Test files | 1 — `app/lib/shopping.test.ts` | **5** |
-| Tests | 10 | **38** |
-| Source lines (rough) | ~2,400 across `app/` | ~2,400 |
-| Source lines tested | ~125 (helpers in `shopping.ts`) | ~700 (helpers + auth + rate-limit + data layer + OOS route) |
-| Coverage estimate | ~5 % | **~30 %** |
-| Test runner | Vitest 3.2.4 | Vitest 3.2.4 |
+| | Original (when doc was written) | After Tier 1 | Now (after Tier 2) |
+|---|---|---|---|
+| Test files | 1 | 5 | **9** |
+| Tests | 10 | 38 | **72** |
+| Source lines (rough) | ~2,400 | ~2,400 | ~2,400 |
+| Source lines tested | ~125 | ~700 | **~1,000** (adds login, register, state, email routes) |
+| Coverage estimate | ~5 % | ~30 % | **~45 %** |
+| Test runner | Vitest 3.2.4 | Vitest 3.2.4 | Vitest 3.2.4 |
 
-### Still untested (gaps after Tier 1)
+### Still untested (gaps after Tier 2)
 
-- API routes other than OOS email: `auth/login`, `auth/register`, `auth/logout`, `auth/me`, `auth/reset-password`, `state`, `backup`, `digital-twin`, `health` — addressed by **Tier 2**
-- Email module (`app/lib/server/email.ts`) — dry-run safeguard, Resend payload — addressed by **Tier 2 tests 2.7-2.8**
+- API routes not in either tier: `auth/logout`, `auth/me`, `auth/reset-password`, `backup`, `digital-twin`, `health` — small handlers, mostly thin wrappers
 - Middleware (`middleware.ts`) — security headers + CSP — addressed by **Tier 3 test 3.9**
 - The entire UI (`app/page.tsx`, 1,087 lines) — addressed by **Tier 3 tests 3.1-3.5**
 
@@ -47,6 +46,13 @@ Every test below is justified by either (a) a known fragile code path in the cur
 - ✅ Rate limiter (`app/lib/server/rate-limit.ts`) — shared by login + register + email
 - ✅ Data layer (`app/lib/server/data.ts`) — list ownership, item-limit enforcement
 - ✅ Out-of-stock email route (`app/api/email/out-of-stock/route.ts`) — rate limit, status filter, HTML escape
+
+### Already addressed by Tier 2
+
+- ✅ Login route (`app/api/auth/login/route.ts`) — auth flow, rate-limit, 400 vs 500 fix
+- ✅ Register route (`app/api/auth/register/route.ts`) — 5-user cap, duplicate username, input validation
+- ✅ State route GET + PUT (`app/api/state/route.ts`) — auth chain, list limit, save-error handling
+- ✅ Email module (`app/lib/server/email.ts`) — dry-run safeguard, Resend payload, multi-recipient parsing, provider errors
 
 ---
 
@@ -98,12 +104,12 @@ The current suite is in `app/lib/shopping.test.ts`. All 10 tests are pure-functi
 
 | Tier | Theme | Status | New tests | New deps |
 |---|---|---|---:|---|
-| **1** | Critical: protect core paths | ✅ **DONE** (2026-05-16) | 12 planned → 28 actually shipped | none |
-| **2** | Important: API contracts | pending | 8 | none |
+| **1** | Critical: protect core paths | ✅ **DONE** (2026-05-16) | 12 planned → 28 shipped | none |
+| **2** | Important: API contracts | ✅ **DONE** (2026-05-16) | 8 planned → 34 shipped (incl. 1 source fix) | none |
 | **3** | Nice to have: UI + middleware + edge cases | pending | 10 | `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`, `@vitejs/plugin-react` |
 | (optional) | E2E with Playwright | pending | 2 | `@playwright/test`, `playwright` |
 
-Total proposed: **30 tests** (~22 reachable with zero new dependencies). **28 of those are now in the repo** (Tier 1, including bonus tests).
+Total proposed: **30 tests** (~22 reachable with zero new dependencies). **62 are now in the repo** (Tiers 1 + 2, including bonus tests and the 400-vs-500 robustness fix).
 
 ---
 
@@ -163,39 +169,41 @@ The tests in this tier protect the highest-stakes code in the app. If something 
 
 ---
 
-## 6. Tier 2 — Important
+## 6. Tier 2 — Important ✅ DONE (2026-05-16)
+
+> **Implemented.** All 8 planned tests plus 26 bonus assertions are now in the repo — 34 tests across 4 new test files. Tier 2 also included a small source fix in three routes (login, register, state PUT) that now return **HTTP 400 for empty / malformed JSON bodies** instead of 500.
 
 API contract tests. These run the route handlers directly with mocked auth + Supabase, then assert status codes and response shapes.
 
-### 2.1 `POST /api/auth/login` returns 401 for bad creds, 200 + Set-Cookie for good
+### ✅ 2.1 `POST /api/auth/login` returns 401 for bad creds, 200 + Set-Cookie for good
 **File:** `app/api/auth/login/route.test.ts`
 **Why:** The login contract — the most-exercised path in the app. Would have caught any silent breakage from the recent Next.js bump if there had been one.
 
-### 2.2 `POST /api/auth/login` returns 400 (not 500) for empty body / malformed JSON
+### ✅ 2.2 `POST /api/auth/login` returns 400 (not 500) for empty body / malformed JSON
 **File:** `app/api/auth/login/route.test.ts`
 **Why:** I flagged this in the health check: the route currently returns 500 because `request.json()` throws on empty input (`login/route.ts:15`). Browsers never hit it, but it's a robustness gap. Writing the test forces the fix (wrap the parse in try/catch and return 400).
 
-### 2.3 `POST /api/auth/register` returns 403 once user limit (5) is reached
+### ✅ 2.3 `POST /api/auth/register` returns 403 once user limit (5) is reached
 **File:** `app/api/auth/register/route.test.ts`
 **Why:** Hard-coded limit on `register/route.ts:42`. If the limit is ever increased without thought (or removed), Vercel's free tier could fill up unexpectedly. Test mocks `countUsers()` to return 5 and asserts 403.
 
-### 2.4 `POST /api/auth/register` returns 409 on duplicate username
+### ✅ 2.4 `POST /api/auth/register` returns 409 on duplicate username
 **File:** `app/api/auth/register/route.test.ts`
 **Why:** Same as above but for the duplicate path on `register/route.ts:37`. Ensures unique-username UX stays intact.
 
-### 2.5 `GET /api/state` returns 401 with no cookie, 200 with valid session
+### ✅ 2.5 `GET /api/state` returns 401 with no cookie, 200 with valid session
 **File:** `app/api/state/route.test.ts`
 **Why:** Exercises the full auth chain: cookie → token verify → user lookup → state response. If any link breaks, the home page won't load. Test mocks `getCurrentUser` to return `null` (asserts 401), then to return a user (asserts 200 + body shape).
 
-### 2.6 `PUT /api/state` rejects payload with >100 lists with HTTP 400
+### ✅ 2.6 `PUT /api/state` rejects payload with >100 lists with HTTP 400
 **File:** `app/api/state/route.test.ts`
 **Why:** Defensive guard on `state/route.ts:55`. Companion to test 1.8 but verified end-to-end through the route, not just the data layer.
 
-### 2.7 `sendMail` in dry-run mode does NOT call `fetch`
+### ✅ 2.7 `sendMail` in dry-run mode does NOT call `fetch`
 **File:** `app/lib/server/email.test.ts` (new)
 **Why:** Critical safety net for local dev. `EMAIL_DRY_RUN=true` is what stops your local machine from sending real emails when you `npm run dev`. Test uses `vi.spyOn(global, "fetch")`, calls `sendMail` with dry-run env, and asserts fetch was never called. Catches the day someone deletes the dry-run check.
 
-### 2.8 `sendMail` throws clear errors when `EMAIL_FROM` or `EMAIL_TO` missing
+### ✅ 2.8 `sendMail` throws clear errors when `EMAIL_FROM` or `EMAIL_TO` missing
 **File:** `app/lib/server/email.test.ts`
 **Why:** `email.ts:35-40` throws by design when config is missing. Test confirms both throws happen with the exact error messages — surfaces misconfigured deploys as loud failures, not silent no-ops.
 
@@ -295,11 +303,11 @@ Plus a `playwright.config.ts` and a `tests/e2e/` folder.
 ## 10. Suggested rollout order
 
 1. ✅ **PR 1 — Tier 1.** Done (2026-05-16). Brought the repo from 10 → 38 tests; locked down the highest-risk code paths. Took ~30 minutes of focused work.
-2. **PR 2 — Tier 2.** Next up. Adds API contract coverage. Includes fixing the `400 vs 500` empty-body bug as a side effect of test 2.2. Est. 1-2 hours.
+2. ✅ **PR 2 — Tier 2.** Done (2026-05-16). Brought the repo from 38 → 72 tests; covers the login/register/state route contracts and the email module. Also fixed the 400-vs-500 empty-body bug in three routes. Took ~25 minutes.
 3. **PR 3 — Tier 3 (optional).** Only if you change `page.tsx` significantly again. Est. 2 hours including UI test setup.
 4. **PR 4 — E2E (optional).** Only if you start shipping more frequently and want a deploy-blocker test. Est. 1-2 hours.
 
-After Tier 1+2, coverage estimate will jump to roughly **35-45 %** of meaningful code paths (raw line coverage will look lower because `page.tsx` is huge and intentionally untested at that stage).
+After Tier 1+2, coverage is roughly **~45 %** of meaningful code paths (raw line coverage will look lower because `page.tsx` is huge and intentionally untested at this stage).
 
 ---
 
@@ -317,10 +325,10 @@ After Tier 1+2, coverage estimate will jump to roughly **35-45 %** of meaningful
 ## 12. Open questions for you
 
 1. ~~**Which tier do you want to start with?**~~ Tier 1 — done.
-2. **Should I include the test for the `400 vs 500` empty-body bug (2.2) and also fix the underlying handler in the same PR?** That's the cleanest pattern: failing test → fix → passing test. Still open for Tier 2.
+2. ~~**Should I include the test for the `400 vs 500` empty-body bug (2.2) and also fix the underlying handler in the same PR?**~~ Yes — done in Tier 2. Login, register, and state-PUT all now return 400 for non-JSON bodies.
 3. **Do you want Playwright E2E now or later?** My vote: later. Still open.
 
-When you're ready for Tier 2, point at it (or specific test numbers) and I'll implement them.
+When you're ready for Tier 3 (UI tests), point at it (or specific test numbers) and I'll implement them.
 
 ---
 
@@ -356,3 +364,42 @@ While writing the planned tests I added 16 bonus assertions where the marginal c
 **Test infrastructure design choice.** The Supabase mock in `app/lib/server/__test__/supabase-mock.ts` is a chainable PromiseLike that records every method call. Tests assert on the recorded call chain rather than on mocked data state — that's how test 1.7 catches the specific regression where the `.eq("owner_id", userId)` guard would be removed from `data.ts:351`.
 
 **Critical test highlight.** Test 1.7 verifies that when a user removes a list from their state, the resulting DELETE on `shopping_lists` includes both `.in("id", [<dropped>])` and `.eq("owner_id", userId)`. Without that constraint, the same DELETE would also remove lists *shared with* the user but owned by someone else. This is the single highest-stakes guarantee in the suite.
+
+---
+
+### 2026-05-16 — Tier 2 shipped
+
+**Result:** 38 → 72 tests, all green. ESLint clean, `tsc --noEmit` clean.
+
+**Files added**
+
+| File | Tests | Covers |
+|---|---:|---|
+| `app/api/auth/login/route.test.ts` | 7 | Tests 2.1-2.2 plus 429 rate-limit, 503 unconfigured-Supabase, malformed-JSON handling |
+| `app/api/auth/register/route.test.ts` | 8 | Tests 2.3-2.4 plus happy-path user creation, short-input 400s, 429 rate-limit, 503 unconfigured |
+| `app/api/state/route.test.ts` | 9 | Tests 2.5-2.6 plus happy-path GET+PUT, empty-body 400, "limit exceeded" → 400, unexpected save error → 500 |
+| `app/lib/server/email.test.ts` | 10 | Tests 2.7-2.8 plus Resend payload shape, multi-recipient parsing, case-insensitive dry-run, unsupported-provider throw, provider 4xx error |
+
+**Files modified — source fix**
+
+| File | Change |
+|---|---|
+| `app/api/auth/login/route.ts` | Bad JSON body now returns **400** instead of 500. Body parsing was moved out of the broad `try` block. |
+| `app/api/auth/register/route.ts` | Same fix as login. |
+| `app/api/state/route.ts` | Same fix on the PUT handler. (GET was already fine.) |
+
+The same bug existed in three places. Test 2.2 only required fixing login, but I fixed all three for consistency — the OOS email route already had this pattern correct (it was written later with the same lesson learned). No behavior change for browser clients, only for adversarial / buggy clients sending non-JSON.
+
+**Why 34 tests instead of 8**
+
+As with Tier 1, I added bonus assertions where the marginal cost was tiny. Notable additions:
+
+- Verifying the **right Resend payload** is built (`to`, `from`, `subject`, `text`, `html`, `reply_to`, `Authorization: Bearer …`) — would catch any regression in `email.ts` payload construction
+- Multi-recipient parsing (`EMAIL_TO="a@x, b@y, c@z"`)
+- Case-insensitive `EMAIL_DRY_RUN` ("true", "TRUE")
+- Resend provider error propagation (4xx with body included in thrown message)
+- 503 short-circuit when Supabase isn't configured (catches the "deploy without env vars" failure mode at every protected route)
+
+**Test infrastructure design choice.** All Tier 2 tests follow the same pattern as Tier 1: hoist all module mocks with `vi.hoisted()`, override per-test with `mockReturnValue`/`mockResolvedValue`, and assert on both response and mock-call shape. Zero new dependencies added.
+
+**Coverage after Tier 2.** Roughly 45 % of meaningful code paths. The remaining gap is `app/page.tsx` (the entire UI, 1,087 lines) which is intentionally deferred to Tier 3 due to the React Testing Library setup cost.

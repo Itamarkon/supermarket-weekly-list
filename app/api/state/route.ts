@@ -47,8 +47,14 @@ export async function PUT(request: Request) {
     );
   }
 
+  let body: { lists?: ClientList[]; history?: HistoryShape };
   try {
-    const body = (await request.json()) as { lists?: ClientList[]; history?: HistoryShape };
+    body = (await request.json()) as { lists?: ClientList[]; history?: HistoryShape };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  try {
     const inputLists = body.lists || [];
     const inputHistory = body.history || {};
 
