@@ -24,7 +24,8 @@ function sign(payload: string, context: "issue" | "verify"): string {
   return crypto.createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-function createToken(userId: string): string {
+// Exported for tests; not part of the public route surface.
+export function createToken(userId: string): string {
   const payloadObj = {
     userId,
     exp: Date.now() + COOKIE_MAX_AGE_SECONDS * 1000,
@@ -33,7 +34,8 @@ function createToken(userId: string): string {
   return `${payload}.${sign(payload, "issue")}`;
 }
 
-function verifyToken(token: string): { userId: string; exp: number } | null {
+// Exported for tests; not part of the public route surface.
+export function verifyToken(token: string): { userId: string; exp: number } | null {
   const [payload, signature] = token.split(".");
   if (!payload || !signature) {
     return null;
