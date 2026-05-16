@@ -42,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# personal chat archives (contain secrets — must never be committed)
+/.chat-archive/

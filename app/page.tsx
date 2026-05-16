@@ -1054,7 +1054,7 @@ export default function Home() {
                 >
                   <button
                     type="button"
-                    className="touch-none shrink-0 select-none rounded-l-lg border-r border-white/15 bg-zinc-800/90 px-1.5 py-2 text-[10px] leading-tight text-zinc-400"
+                    className="touch-none shrink-0 select-none rounded-l-lg border-r border-white/15 bg-zinc-800/90 px-1 py-1.5 text-[10px] leading-tight text-zinc-400 md:px-1.5 md:py-2"
                     title="גרור לעמודה אחרת (טלפון / מחשב)"
                     aria-label="גרור פריט לעמודה אחרת"
                     onPointerDown={(event) => {
@@ -1066,7 +1066,7 @@ export default function Home() {
                     ⋮⋮
                   </button>
                   <div
-                    className="min-w-0 flex-1 p-2"
+                    className="min-w-0 flex-1 p-1.5 md:p-2"
                     draggable
                     onDragStart={(event) => {
                       event.dataTransfer.setData("text/plain", item.id);
@@ -1074,62 +1074,83 @@ export default function Home() {
                     }}
                     onDragEnd={() => setDragOverCategory(null)}
                   >
-                  <p className="font-semibold">{item.name}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-xs">Qty:</span>
-                    <button
-                      className="rounded-md bg-zinc-700 px-2 py-1 text-xs"
-                      onClick={() => changeItemQuantity(item.id, item.quantity - 1)}
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      className="w-16 rounded-md border border-white/30 bg-black/20 px-2 py-1 text-xs"
-                      value={item.quantity}
-                      onChange={(event) => changeItemQuantity(item.id, Number(event.target.value || 1))}
-                    />
-                    <button
-                      className="rounded-md bg-zinc-700 px-2 py-1 text-xs"
-                      onClick={() => changeItemQuantity(item.id, item.quantity + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {item.notes ? <p className="text-xs opacity-85">Notes: {item.notes}</p> : null}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg bg-emerald-500 px-2 py-1 text-xs text-black"
-                      onClick={() => toggleInCart(item.id)}
-                    >
-                      In Cart
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg bg-red-500 px-2 py-1 text-xs text-black"
-                      onClick={() => toggleOutOfStock(item.id)}
-                    >
-                      Out of Stock
-                    </button>
-                    <button className="rounded-lg bg-zinc-500 px-2 py-1 text-xs" onClick={() => deleteItem(item.id)}>
-                      Delete
-                    </button>
-                  </div>
-                  <label className="md:hidden mt-2 block text-xs text-zinc-400">העבר לקטגוריה / Move to</label>
-                  <select
-                    className="md:hidden mt-1 w-full rounded-lg border border-white/30 bg-black/40 px-2 py-2 text-sm"
-                    aria-label="העבר פריט לקטגוריה"
-                    value={item.category}
-                    onChange={(event) => moveItemToCategory(item.id, event.target.value)}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    {/* Row 1: name + inline qty stepper on mobile; on desktop, qty goes on its own row below */}
+                    <div className="flex items-start justify-between gap-2 md:block">
+                      <p className="text-sm font-semibold leading-tight md:text-base">{item.name}</p>
+                      <div className="flex shrink-0 items-center gap-1 md:mt-1 md:gap-2">
+                        <span className="hidden text-xs md:inline">Qty:</span>
+                        <button
+                          className="rounded-md bg-zinc-700 px-2 py-1 text-[11px] leading-none transition-transform active:scale-95 md:text-xs"
+                          onClick={() => changeItemQuantity(item.id, item.quantity - 1)}
+                          aria-label="הפחת כמות"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          className="w-10 rounded-md border border-white/30 bg-black/20 px-1 py-1 text-center text-[11px] md:w-16 md:px-2 md:text-xs"
+                          value={item.quantity}
+                          onChange={(event) => changeItemQuantity(item.id, Number(event.target.value || 1))}
+                          aria-label="כמות"
+                        />
+                        <button
+                          className="rounded-md bg-zinc-700 px-2 py-1 text-[11px] leading-none transition-transform active:scale-95 md:text-xs"
+                          onClick={() => changeItemQuantity(item.id, item.quantity + 1)}
+                          aria-label="הוסף לכמות"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {item.notes ? (
+                      <p className="mt-1 text-[11px] italic opacity-85 md:text-xs md:not-italic">
+                        Notes: {item.notes}
+                      </p>
+                    ) : null}
+
+                    {/* Row 3 on mobile: action chips + (mobile-only) category dropdown */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 md:mt-2 md:gap-2">
+                      <button
+                        type="button"
+                        className="rounded-lg bg-emerald-500 px-2 py-1 text-[11px] font-medium text-black transition-transform active:scale-95 md:text-xs"
+                        onClick={() => toggleInCart(item.id)}
+                      >
+                        <span className="md:hidden">✓ Cart</span>
+                        <span className="hidden md:inline">In Cart</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-red-500 px-2 py-1 text-[11px] font-medium text-black transition-transform active:scale-95 md:text-xs"
+                        onClick={() => toggleOutOfStock(item.id)}
+                      >
+                        <span className="md:hidden">✗ Out</span>
+                        <span className="hidden md:inline">Out of Stock</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-zinc-500 px-2 py-1 text-[11px] transition-transform active:scale-95 md:text-xs"
+                        onClick={() => deleteItem(item.id)}
+                        aria-label="מחק פריט"
+                        title="מחק"
+                      >
+                        <span className="md:hidden">🗑</span>
+                        <span className="hidden md:inline">Delete</span>
+                      </button>
+                      <select
+                        className="ml-auto min-w-0 max-w-[40%] rounded-lg border border-white/30 bg-black/40 px-1.5 py-1 text-[11px] md:hidden"
+                        aria-label="העבר פריט לקטגוריה"
+                        value={item.category}
+                        onChange={(event) => moveItemToCategory(item.id, event.target.value)}
+                      >
+                        {CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               ))}
