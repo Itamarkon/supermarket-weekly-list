@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Personal/dev-only scripts kept outside the app (also gitignored).
+    ".chat-archive/**",
   ]),
 ]);
 
