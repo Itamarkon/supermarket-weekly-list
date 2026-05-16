@@ -877,16 +877,18 @@ export default function Home() {
               }
             }}
           />
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
           <button
             type="button"
-            className="rounded-xl bg-orange-500 px-3 py-2 text-black shadow-md shadow-orange-900/30"
+            className="w-full rounded-xl bg-orange-500 px-3 py-2 text-black shadow-md shadow-orange-900/30 md:w-auto"
             onClick={closeListAndTrackRepeats}
           >
             Close Week + Track Repeats
           </button>
           <button
             type="button"
-            className="rounded-xl bg-red-500 px-3 py-2 text-black shadow-md shadow-red-900/30"
+            className="w-full rounded-xl bg-red-500 px-3 py-2 text-black shadow-md shadow-red-900/30 md:w-auto"
             onClick={deleteCurrentList}
           >
             Delete Current List
@@ -894,16 +896,16 @@ export default function Home() {
           <button
             type="button"
             disabled={isSendingOosEmail}
-            className="rounded-xl bg-sky-500 px-3 py-2 text-black shadow-md shadow-sky-900/30 disabled:opacity-60"
+            className="w-full rounded-xl bg-sky-500 px-3 py-2 text-black shadow-md shadow-sky-900/30 disabled:opacity-60 md:w-auto"
             onClick={() => void emailOutOfStockList()}
           >
-            {isSendingOosEmail ? "Sending..." : "Email out-of-stock list"}
+            {isSendingOosEmail ? "Sending..." : "✉ Email out-of-stock list"}
           </button>
           {closeWeekMessage ? (
-            <span className="w-full text-sm text-emerald-200 sm:w-auto">{closeWeekMessage}</span>
+            <span className="text-sm text-emerald-200 md:w-auto">{closeWeekMessage}</span>
           ) : null}
           {oosEmailMessage ? (
-            <span className="w-full text-sm text-sky-200 sm:w-auto">{oosEmailMessage}</span>
+            <span className="text-sm text-sky-200 md:w-auto">{oosEmailMessage}</span>
           ) : null}
         </div>
       </section>
