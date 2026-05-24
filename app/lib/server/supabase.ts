@@ -129,14 +129,7 @@ export async function pingSupabase(): Promise<{ ok: true } | { ok: false; error:
     return { ok: false, error: "Supabase env vars are not configured." };
   }
   try {
-    const supabaseAdmin = getSupabaseAdmin() as {
-      from: (table: string) => {
-        select: (
-          columns: string,
-          options: { count: "exact"; head: true }
-        ) => Promise<{ error: { message: string } | null }>;
-      };
-    };
+    const supabaseAdmin = getSupabaseAdmin() as any;
     const { error } = await supabaseAdmin
       .from("shopping_users")
       .select("id", { count: "exact", head: true });
