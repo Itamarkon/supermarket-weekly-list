@@ -123,6 +123,33 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
 }
 
+/** Lightweight connectivity probe — returns false when the project is paused, deleted, or unreachable. */
+export async function pingSupabase(): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase env vars are not configured." };
+  }
+  try {
+    const supabaseAdmin = getSupabaseAdmin() as {
+      from: (table: string) => {
+        select: (
+          columns: string,
+          options: { count: "exact"; head: true }
+        ) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+    const { error } = await supabaseAdmin
+      .from("shopping_users")
+      .select("id", { count: "exact", head: true });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export function getSupabaseAdmin() {
   if (cachedClient) {
     return cachedClient;

@@ -46,6 +46,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ username: user.username });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to login.";
+    if (message.startsWith("Database error:") || message.includes("fetch failed")) {
+      console.error("Login failed (database unavailable):", message);
+      return NextResponse.json(
+        {
+          error:
+            "Database is temporarily unavailable. If this persists, check that your Supabase project is active (not paused).",
+        },
+        { status: 503 }
+      );
+    }
     console.error("Login failed:", message);
     return NextResponse.json({ error: "Login failed." }, { status: 500 });
   }

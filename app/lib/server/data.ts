@@ -78,7 +78,10 @@ export async function getUserByUsername(username: string): Promise<StoredUser | 
     .select("id, username, password_hash, password_salt, created_at")
     .eq("username", username)
     .maybeSingle();
-  if (error || !data) {
+  if (error) {
+    throw new Error(`Database error: ${error.message}`);
+  }
+  if (!data) {
     return null;
   }
   const row = data as {
